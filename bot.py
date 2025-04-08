@@ -64,7 +64,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Handle the /search command by showing location options."""
+    """Handle the /search command by directly showing the first property."""
     # Show loading message
     message = await update.message.reply_text(BOT_MESSAGES["loading"])
     
@@ -84,33 +84,59 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await message.edit_text(ERROR_MESSAGES["no_locations"])
         return ConversationHandler.END
     
-    # Create a message with the count of available properties
-    property_count_text = f"We have {len(properties)} properties available across {len(locations)} locations:"
+    # Since we want to show properties right away, let's default to the first location
+    location = locations[0] if isinstance(locations[0], str) else "Unknown"
     
-    # Create keyboard with locations
+    # Get properties for selected location
+    location_properties = get_properties_by_location(location)
+    
+    # If no properties found in this location, use all properties
+    if not location_properties:
+        location_properties = properties
+    
+    # Store properties in context
+    context.user_data["properties"] = location_properties
+    context.user_data["current_index"] = 0
+    context.user_data["location"] = location
+    
+    # Display property count
+    property_count_message = BOT_MESSAGES["property_count"].format(len(location_properties), location)
+    await message.edit_text(property_count_message)
+    
+    # Prepare and show the first property
+    property_data = location_properties[0]
+    
+    # Format property message
+    message_text = format_property_message(property_data)
+    
+    # Get property image URL
+    image_url = get_property_image_url(property_data)
+    
+    # Create navigation buttons
     keyboard = []
-    for location in locations:
-        if not isinstance(location, str):
-            logger.warning(f"Skipping non-string location in search: {location}")
-            continue
-        
-        # Count properties in this location
-        location_properties = get_properties_by_location(location)
-        count = len(location_properties) if location_properties else 0
-        
-        # Ensure button text is a string with house emoji
-        button_text = f"🏠 {location} ({count})"
-        keyboard.append([InlineKeyboardButton(button_text, callback_data=f"location:{location}")])
-    
+    if len(location_properties) > 1:
+        keyboard.append([InlineKeyboardButton("Next Property ➡️", callback_data="property:next")])
+    keyboard.append([InlineKeyboardButton("Back to Search 🔙", callback_data="property:back")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # Show location options
-    await message.edit_text(
-        property_count_text,
-        reply_markup=reply_markup
-    )
+    # Send property with image
+    if image_url:
+        await update.message.reply_photo(
+            photo=image_url,
+            caption=message_text,
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+        # Delete the previous message
+        await message.delete()
+    else:
+        await message.edit_text(
+            text=message_text,
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
     
-    return SELECTING_LOCATION
+    return VIEWING_PROPERTIES
     
 async def handle_text_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle text-based location selection during the search process."""
@@ -390,36 +416,63 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Get available locations
         locations = get_locations()
         
-        if locations:
-            # Create a message with the count of available properties
-            property_count_text = f"We have {len(properties)} properties available across {len(locations)} locations:"
-            
-            # Create keyboard with locations
-            keyboard = []
-            for location in locations:
-                if not isinstance(location, str):
-                    logger.warning(f"Skipping non-string location in handle_message: {location}")
-                    continue
-                    
-                # Count properties in this location
-                location_properties = get_properties_by_location(location)
-                count = len(location_properties) if location_properties else 0
-                
-                # Ensure button text is a string with house emoji (consistent with other places)
-                button_text = f"🏠 {location} ({count})"
-                keyboard.append([InlineKeyboardButton(button_text, callback_data=f"location:{location}")])
-            
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            # Show location options directly as buttons
-            await loading_message.edit_text(
-                property_count_text,
-                reply_markup=reply_markup
-            )
-            return SELECTING_LOCATION
-        else:
+        if not locations or len(locations) == 0:
             await loading_message.edit_text("Sorry, I couldn't find any locations. Please try again later.")
             return CHATTING
+        
+        # Since we want to show properties right away, let's default to the first location
+        location = locations[0] if isinstance(locations[0], str) else "Unknown"
+        
+        # Get properties for selected location
+        location_properties = get_properties_by_location(location)
+        
+        # If no properties found in this location, use all properties
+        if not location_properties:
+            location_properties = properties
+        
+        # Store properties in context
+        context.user_data["properties"] = location_properties
+        context.user_data["current_index"] = 0
+        context.user_data["location"] = location
+        
+        # Display property count
+        property_count_message = BOT_MESSAGES["property_count"].format(len(location_properties), location)
+        await loading_message.edit_text(property_count_message)
+        
+        # Prepare and show the first property
+        property_data = location_properties[0]
+        
+        # Format property message
+        message_text = format_property_message(property_data)
+        
+        # Get property image URL
+        image_url = get_property_image_url(property_data)
+        
+        # Create navigation buttons
+        keyboard = []
+        if len(location_properties) > 1:
+            keyboard.append([InlineKeyboardButton("Next Property ➡️", callback_data="property:next")])
+        keyboard.append([InlineKeyboardButton("Back to Search 🔙", callback_data="property:back")])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Send property with image
+        if image_url:
+            await update.message.reply_photo(
+                photo=image_url,
+                caption=message_text,
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+            # Delete the loading message
+            await loading_message.delete()
+        else:
+            await loading_message.edit_text(
+                text=message_text,
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+        
+        return VIEWING_PROPERTIES
     
     # Check for thank you messages
     if any(word in message_text for word in ["thank", "thanks", "appreciate", "helpful"]):
@@ -956,7 +1009,7 @@ async def alert_delete_confirmed(update: Update, context: ContextTypes.DEFAULT_T
     return ConversationHandler.END
 
 async def show_properties_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Handle the 'Properties' button click and show available locations as direct buttons."""
+    """Handle the 'Properties' button click and directly show the first property."""
     query = update.callback_query
     await query.answer()
     
@@ -971,39 +1024,66 @@ async def show_properties_button(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_text("Sorry, I couldn't find any properties at the moment. Please try again later.")
         return ConversationHandler.END
     
-    # Get available locations
+    # Get available locations (to get the location of the first property)
     locations = get_locations()
     
-    if locations:
-        # Create a message with the count of available properties
-        property_count_text = f"We have {len(properties)} properties available across {len(locations)} locations:"
-        
-        # Create keyboard with locations - using house emoji for each location button
-        keyboard = []
-        for location in locations:
-            if not isinstance(location, str):
-                logger.warning(f"Skipping non-string location: {location}")
-                continue
-            
-            # Count properties in this location
-            location_properties = get_properties_by_location(location)
-            count = len(location_properties) if location_properties else 0
-            
-            # Ensure button text is a string with house emoji
-            button_text = f"🏠 {location} ({count})"
-            keyboard.append([InlineKeyboardButton(button_text, callback_data=f"location:{location}")])
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        # Show locations directly as buttons
-        await query.edit_message_text(
-            f"{property_count_text}",
-            reply_markup=reply_markup
-        )
-        return SELECTING_LOCATION
-    else:
+    if not locations or len(locations) == 0:
         await query.edit_message_text("Sorry, I couldn't find any locations. Please try again later.")
         return ConversationHandler.END
+    
+    # Since we want to show properties right away, let's default to the first location
+    location = locations[0] if isinstance(locations[0], str) else "Unknown"
+    
+    # Get properties for selected location
+    location_properties = get_properties_by_location(location)
+    
+    # If no properties found in this location, use all properties
+    if not location_properties:
+        location_properties = properties
+    
+    # Store properties in context
+    context.user_data["properties"] = location_properties
+    context.user_data["current_index"] = 0
+    context.user_data["location"] = location
+    
+    # Display property count
+    property_count_message = BOT_MESSAGES["property_count"].format(len(location_properties), location)
+    await query.edit_message_text(property_count_message)
+    
+    # Prepare and show the first property
+    property_data = location_properties[0]
+    
+    # Format property message
+    message_text = format_property_message(property_data)
+    
+    # Get property image URL
+    image_url = get_property_image_url(property_data)
+    
+    # Create navigation buttons
+    keyboard = []
+    if len(location_properties) > 1:
+        keyboard.append([InlineKeyboardButton("Next Property ➡️", callback_data="property:next")])
+    keyboard.append([InlineKeyboardButton("Back to Search 🔙", callback_data="property:back")])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Send property with image
+    if image_url:
+        await query.message.reply_photo(
+            photo=image_url,
+            caption=message_text,
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+        # Delete the previous message
+        await query.delete_message()
+    else:
+        await query.edit_message_text(
+            text=message_text,
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+    
+    return VIEWING_PROPERTIES
 
 def create_bot():
     """Create and configure the bot with all handlers."""
