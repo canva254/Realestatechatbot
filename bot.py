@@ -94,13 +94,27 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not location_properties:
         location_properties = properties
     
+    # Extract the actual location from the first property
+    actual_location = location
+    if location_properties and len(location_properties) > 0:
+        property_data = location_properties[0]
+        if 'acf' in property_data and 'location' in property_data['acf']:
+            prop_location = property_data['acf']['location']
+            if isinstance(prop_location, str) and prop_location.strip():
+                actual_location = prop_location
+            elif prop_location is not None:
+                try:
+                    actual_location = str(prop_location)
+                except:
+                    pass
+    
     # Store properties in context
     context.user_data["properties"] = location_properties
     context.user_data["current_index"] = 0
-    context.user_data["location"] = location
+    context.user_data["location"] = actual_location
     
-    # Display property count
-    property_count_message = BOT_MESSAGES["property_count"].format(len(location_properties), location)
+    # Display property count with actual location from property data
+    property_count_message = BOT_MESSAGES["property_count"].format(len(location_properties), actual_location)
     await message.edit_text(property_count_message)
     
     # Prepare and show the first property
@@ -334,8 +348,23 @@ async def show_property(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     
     # If this is the first property, show property count message
     if current_index == 0 and query:
+        # Get the actual location from the property data if available
+        actual_location = "Unknown"
+        if 'acf' in property_data and 'location' in property_data['acf']:
+            prop_location = property_data['acf']['location']
+            if isinstance(prop_location, str) and prop_location.strip():
+                actual_location = prop_location
+            elif prop_location is not None:
+                try:
+                    actual_location = str(prop_location)
+                except:
+                    pass
+        
+        # Update context with the actual location
+        context.user_data["location"] = actual_location
+        
         await query.edit_message_text(
-            BOT_MESSAGES["property_count"].format(len(properties), location)
+            BOT_MESSAGES["property_count"].format(len(properties), actual_location)
         )
     
     # Send property with image
@@ -430,13 +459,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if not location_properties:
             location_properties = properties
         
+        # Extract the actual location from the first property
+        actual_location = location
+        if location_properties and len(location_properties) > 0:
+            property_data = location_properties[0]
+            if 'acf' in property_data and 'location' in property_data['acf']:
+                prop_location = property_data['acf']['location']
+                if isinstance(prop_location, str) and prop_location.strip():
+                    actual_location = prop_location
+                elif prop_location is not None:
+                    try:
+                        actual_location = str(prop_location)
+                    except:
+                        pass
+        
         # Store properties in context
         context.user_data["properties"] = location_properties
         context.user_data["current_index"] = 0
-        context.user_data["location"] = location
+        context.user_data["location"] = actual_location
         
-        # Display property count
-        property_count_message = BOT_MESSAGES["property_count"].format(len(location_properties), location)
+        # Display property count with actual location
+        property_count_message = BOT_MESSAGES["property_count"].format(len(location_properties), actual_location)
         await loading_message.edit_text(property_count_message)
         
         # Prepare and show the first property
@@ -525,13 +568,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         # Show location options by calling search
                         return await search(update, context)
                     
+                    # Extract the actual location from the first property
+                    actual_location = location
+                    if properties and len(properties) > 0:
+                        property_data = properties[0]
+                        if 'acf' in property_data and 'location' in property_data['acf']:
+                            prop_location = property_data['acf']['location']
+                            if isinstance(prop_location, str) and prop_location.strip():
+                                actual_location = prop_location
+                            elif prop_location is not None:
+                                try:
+                                    actual_location = str(prop_location)
+                                except:
+                                    pass
+                    
                     # Store properties in context
                     context.user_data["properties"] = properties
                     context.user_data["current_index"] = 0
+                    context.user_data["location"] = actual_location
                     
                     # Display property count
                     await message.edit_text(
-                        BOT_MESSAGES["property_count"].format(len(properties), location)
+                        BOT_MESSAGES["property_count"].format(len(properties), actual_location)
                     )
                     
                     # Prepare to show the first property
@@ -605,13 +663,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     await update.message.reply_text(BOT_MESSAGES["no_results_suggestion"])
                     return await search(update, context)
                 
+                # Extract the actual location from the first property
+                actual_location = location
+                if properties and len(properties) > 0:
+                    property_data = properties[0]
+                    if 'acf' in property_data and 'location' in property_data['acf']:
+                        prop_location = property_data['acf']['location']
+                        if isinstance(prop_location, str) and prop_location.strip():
+                            actual_location = prop_location
+                        elif prop_location is not None:
+                            try:
+                                actual_location = str(prop_location)
+                            except:
+                                pass
+                
                 # Store properties in context
                 context.user_data["properties"] = properties
                 context.user_data["current_index"] = 0
+                context.user_data["location"] = actual_location
                 
-                # Display property count
+                # Display property count with actual location
                 await update.message.reply_text(
-                    BOT_MESSAGES["property_count"].format(len(properties), location)
+                    BOT_MESSAGES["property_count"].format(len(properties), actual_location)
                 )
                 
                 # Prepare to show the first property
@@ -1046,8 +1119,25 @@ async def show_properties_button(update: Update, context: ContextTypes.DEFAULT_T
     context.user_data["current_index"] = 0
     context.user_data["location"] = location
     
+    # Get the actual location from the first property
+    actual_location = location
+    if location_properties and len(location_properties) > 0:
+        property_data = location_properties[0]
+        if 'acf' in property_data and 'location' in property_data['acf']:
+            prop_location = property_data['acf']['location']
+            if isinstance(prop_location, str) and prop_location.strip():
+                actual_location = prop_location
+            elif prop_location is not None:
+                try:
+                    actual_location = str(prop_location)
+                except:
+                    pass
+    
+    # Update context with the actual location
+    context.user_data["location"] = actual_location
+    
     # Display property count
-    property_count_message = BOT_MESSAGES["property_count"].format(len(location_properties), location)
+    property_count_message = BOT_MESSAGES["property_count"].format(len(location_properties), actual_location)
     await query.edit_message_text(property_count_message)
     
     # Prepare and show the first property

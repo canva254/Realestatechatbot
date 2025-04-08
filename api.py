@@ -49,12 +49,15 @@ def fetch_properties():
         list: List of property dictionaries or None if there was an error
     """
     try:
-        logger.info(f"Fetching properties from {WP_API_URL}")
-        response = requests.get(WP_API_URL, params=PARAMS)
+        # Ensure _embed parameter is included for proper image loading
+        embed_url = f"{WP_API_URL}?_embed"
+        logger.info(f"Fetching properties from {embed_url}")
+        
+        response = requests.get(embed_url, params=PARAMS)
         response.raise_for_status()  # Raise exception for 4XX/5XX responses
         
         properties = response.json()
-        logger.info(f"Successfully fetched {len(properties)} properties")
+        logger.info(f"Successfully fetched {len(properties)} properties with embedded data")
         return properties
     except requests.exceptions.RequestException as e:
         logger.error(f"Error fetching properties: {e}")
@@ -128,14 +131,16 @@ def get_properties_by_location(location):
         
     try:
         # Use the direct filter endpoint for better performance
+        # Include _embed parameter in both URL and params to ensure featured images are included
         filter_url = f"{WP_API_URL}?acf[location]={location}&_embed"
+        filter_params = {"_embed": True, "per_page": 100}
         logger.info(f"Fetching properties by location from {filter_url}")
         
-        response = requests.get(filter_url)
+        response = requests.get(filter_url, params=filter_params)
         response.raise_for_status()
         
         properties = response.json()
-        logger.info(f"Found {len(properties)} properties in {location}")
+        logger.info(f"Found {len(properties)} properties in {location} with embedded data")
         
         return properties if properties else None
     except requests.exceptions.RequestException as e:
