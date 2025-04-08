@@ -3,7 +3,7 @@ import re
 import time
 import asyncio
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler, ContextTypes, MessageHandler, filters
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 
 from config import TELEGRAM_TOKEN, BOT_MESSAGES, ERROR_MESSAGES, CACHE_TTL
 from api import get_locations, get_properties_by_location
@@ -24,11 +24,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Define conversation states
-SELECTING_LOCATION, VIEWING_PROPERTIES, CHATTING = range(3)
+SELECTING_LOCATION, SELECTING_BUDGET, SELECTING_BEDROOMS, VIEWING_PROPERTIES, CHATTING = range(5)
 
 # Alert conversation states
 (ALERT_MAIN, ALERT_CREATING, ALERT_LOCATION, ALERT_MIN_PRICE, 
-ALERT_MAX_PRICE, ALERT_MIN_BEDROOMS, ALERT_LIST, ALERT_DELETE_CONFIRM) = range(3, 11)
+ALERT_MAX_PRICE, ALERT_MIN_BEDROOMS, ALERT_LIST, ALERT_DELETE_CONFIRM) = range(5, 13)
 
 # Property display cache to improve performance
 # Structure: {location: {last_updated: timestamp, properties: [...]}}
@@ -133,6 +133,112 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     )
     
     return SELECTING_LOCATION
+    
+async def handle_text_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle text-based location selection during the search process."""
+    user_text = update.message.text.strip()
+    
+    # Get available locations
+    locations = get_locations()
+    if not locations:
+        await update.message.reply_text(ERROR_MESSAGES["no_locations"])
+        return ConversationHandler.END
+    
+    # Check if the text matches any available location (case insensitive)
+    matched_location = None
+    for location in locations:
+        if isinstance(location, str) and location.lower() == user_text.lower():
+            matched_location = location
+            break
+    
+    # If no exact match, try partial match
+    if not matched_location:
+        for location in locations:
+            if isinstance(location, str) and location.lower() in user_text.lower():
+                matched_location = location
+                break
+                
+    # If still no match, show available locations
+    if not matched_location:
+        await update.message.reply_text(
+            f"I couldn't find '{user_text}' in our available locations. Please select from the following:",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton(str(loc), callback_data=f"location:{loc}")]
+                for loc in locations if isinstance(loc, str)
+            ])
+        )
+        return SELECTING_LOCATION
+        
+    # We found a matching location
+    context.user_data["location"] = matched_location
+    
+    # Show loading message
+    message = await update.message.reply_text(BOT_MESSAGES["loading"])
+    
+    # Check if we have cached properties for this location
+    current_time = time.time()
+    if (matched_location in property_display_cache and 
+        current_time - property_display_cache[matched_location]["last_updated"] < CACHE_TTL):
+        logger.info(f"Using cached properties for {matched_location}")
+        properties = property_display_cache[matched_location]["properties"]
+    else:
+        # Get properties for selected location
+        logger.info(f"Fetching fresh properties for {matched_location}")
+        properties = get_properties_by_location(matched_location)
+        
+        # Cache the results
+        if properties:
+            property_display_cache[matched_location] = {
+                "last_updated": current_time,
+                "properties": properties
+            }
+    
+    # If no properties found, show error message
+    if not properties:
+        await message.edit_text(f"{BOT_MESSAGES['property_not_found']} ({matched_location})")
+        return await search(update, context)
+    
+    # Store properties in context
+    context.user_data["properties"] = properties
+    context.user_data["current_index"] = 0
+    
+    # Display property count
+    await message.edit_text(
+        BOT_MESSAGES["property_count"].format(len(properties), matched_location)
+    )
+    
+    # Get first property
+    property_data = properties[0]
+    
+    # Format property message
+    message_text = format_property_message(property_data)
+    
+    # Get property image URL
+    image_url = get_property_image_url(property_data)
+    
+    # Create navigation buttons
+    keyboard = []
+    if len(properties) > 1:
+        keyboard.append([InlineKeyboardButton("Next Property ➡️", callback_data="property:next")])
+    keyboard.append([InlineKeyboardButton("New Search 🔍", callback_data="property:back")])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Send property with image
+    if image_url:
+        await update.message.reply_photo(
+            photo=image_url,
+            caption=message_text,
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+    else:
+        await update.message.reply_text(
+            text=message_text,
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+    
+    return VIEWING_PROPERTIES
 
 async def location_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle location selection."""
@@ -880,11 +986,19 @@ def create_bot():
         ],
         states={
             SELECTING_LOCATION: [
-                # Make pattern more specific to avoid overlap
-                CallbackQueryHandler(location_selected, pattern=r"^location:[A-Za-z ]+$")
+                # Handle button clicks for location selection
+                CallbackQueryHandler(location_selected, pattern=r"^location:[A-Za-z ]+$"),
+                # Handle text input for locations
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_location)
+            ],
+            SELECTING_BUDGET: [
+                # For future implementation
+            ],
+            SELECTING_BEDROOMS: [
+                # For future implementation
             ],
             VIEWING_PROPERTIES: [
-                # Make pattern more specific to avoid overlap
+                # Handle property navigation buttons
                 CallbackQueryHandler(property_navigation, pattern=r"^property:(next|back|new_search)$")
             ],
             CHATTING: [

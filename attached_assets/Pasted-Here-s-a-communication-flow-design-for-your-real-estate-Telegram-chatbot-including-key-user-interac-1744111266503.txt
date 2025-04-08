@@ -1,0 +1,195 @@
+Here's a communication flow design for your real estate Telegram chatbot, including key user interactions, error handling, and data flow:
+1. High-Level Flow Diagram
+Copy
+
+┌──────────────────────┐          ┌───────────────────┐          ┌───────────────────┐
+│                      │          │                   │          │                   │
+│   User Starts Bot    │───/start─▶│   Welcome Message  │───/search─▶│  Location Selection │
+│                      │          │                   │          │   (Buttons)       │
+└──────────────────────┘          └───────────────────┘          └───────────────────┘
+                                       │                                         │
+                                       ▼                                         ▼
+                              ┌───────────────────┐          ┌──────────────────────────────┐
+                              │    Help/Commands  │          │   Fetch Properties from WP   │
+                              │                   │          │   (Filter by Location)       │
+                              └───────────────────┘          └──────────────────────────────┘
+                                                                               │
+                                                                               ▼
+                                                                  ┌──────────────────────────────┐
+                                                                  │   Display Property Details   │
+                                                                  │   (Image + Price + Features)  │
+                                                                  └──────────────────────────────┘
+                                                                               │
+                                                                               ▼
+                                                          ┌───────────────────────────────────────┐
+                                                          │   Additional Actions                 │
+                                                          │   (Save to Favorites / More Options) │
+                                                          └───────────────────────────────────────┘
+
+2. Step-by-Step Flow Breakdown
+A. Start Command (/start)
+
+    Bot Response:
+    Copy
+
+    🏡 Welcome to [Your Real Estate Bot]!  
+    🔍 Use /search to find properties in Nairobi.  
+    💡 Tips: Use /help for commands or /saved to view favorites.
+
+    User Path: Proceed to /search.
+
+B. Search Command (/search)
+
+    Bot Action:
+
+        Fetch all unique locations from WordPress API (/wp/v2/property).
+
+        Display locations as inline buttons.
+
+    Bot Response:
+    Copy
+
+    📍 Select a location:  
+    [Lavington] [Karen] [Westlands]
+
+    User Action: Clicks a location (e.g., "Lavington").
+
+C. Location Selected
+
+    Bot Action:
+
+        Fetch properties from WordPress API:
+        python
+        Copy
+
+        url = f"https://avierhomes.co.ke/wp-json/wp/v2/property?acf[location]=Lavington&_embed"
+
+        Parse the first property (or paginate if multiple).
+
+    Bot Response:
+    markdown
+    Copy
+
+    🖼️ [Property Image]
+    🏠 *Luxury 5-Bedroom Mansion*
+    💰 Price: $1,200,000
+    🛏 Bedrooms: 5
+    🚽 Bathrooms: 6
+    📍 Location: Lavington
+    🌟 Features: Gated Community, Pool
+
+    [1/3] ➡️ Next Property | 💖 Save to Favorites
+
+    User Actions:
+
+        Next Property: Paginate through listings.
+
+        Save to Favorites: Store property ID in a database.
+
+        Back to Locations: Return to /search.
+
+D. Error Handling
+Scenario	Bot Response
+No properties in location	❌ No properties found in Lavington.
+API fetch failed	⚠️ Oops! Failed to fetch data. Try later.
+Invalid command	❓ Invalid command. Use /help for a list.
+3. Data Flow Sequence
+ascii
+Copy
+
+User            Telegram            Bot Server           WordPress API
+ │                 │                    │                       │
+ │── /start ──────▶│                    │                       │
+ │                 │── /start ────────▶ │                       │
+ │                 │                    │── GET /property ────▶ │
+ │                 │                    │◀─ JSON Properties ────│
+ │                 │◀── Welcome Msg ────│                       │
+ │◀────────────────│                    │                       │
+ │                 │                    │                       │
+ │── /search ─────▶│                    │                       │
+ │                 │── /search ────────▶│                       │
+ │                 │                    │── GET /property ────▶ │
+ │                 │                    │◀─ JSON Locations ─────│
+ │                 │◀─ Location Buttons─│                       │
+ │◀────────────────│                    │                       │
+ │── Lavington ───▶│                    │                       │
+ │                 │── Lavington ──────▶│                       │
+ │                 │                    │─ GET /property?location=Lavington ▶
+ │                 │                    │◀─ JSON Properties ────│
+ │                 │◀─ Property Card ──▶│                       │
+ │◀────────────────│                    │                       │
+
+4. Key Features to Implement
+
+    Pagination:
+
+        Use inline buttons ([1/5] ➡️ Next) to cycle through properties.
+
+        Store pagination state in a database (e.g., Redis).
+
+    Favorites System:
+
+        Save property IDs to a database (e.g., SQLite, Firebase).
+
+        Add /saved command to view favorites.
+
+    Filters:
+
+        Add buttons for price range, bedrooms, etc.
+
+        Example flow:
+        Copy
+
+        User: /search → Location → [Filter by Price] → [<$500K] → Show results.
+
+    Admin Notifications:
+
+        Notify admins via Telegram when users save properties.
+
+5. Tools & Libraries
+
+    Python: Use python-telegram-bot for the bot framework.
+
+    Database: SQLite (simple) or Firebase (scalable).
+
+    Caching: Redis to store pagination/filter states.
+
+    Error Monitoring: Sentry or Loggly.
+
+6. Sample Code Logic
+python
+Copy
+
+# Pagination handler
+def next_property(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    current_page = context.user_data.get('page', 1)
+    properties = fetch_properties(location="Lavington")
+    
+    if current_page < len(properties):
+        context.user_data['page'] = current_page + 1
+        prop = properties[current_page]
+        send_property_card(update, prop)
+    else:
+        update.message.reply_text("🎉 No more properties!")
+
+# Save to favorites
+def save_favorite(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    prop_id = context.user_data['current_property_id']
+    database.save_favorite(user_id, prop_id)
+    update.message.reply_text("💖 Saved to favorites!")
+
+7. Suggested Enhancements
+
+    Lead Generation:
+
+        Add a "📞 Contact Agent" button to capture user phone numbers.
+
+    Property Alerts:
+
+        Let users subscribe to notifications for new properties in their area.
+
+    Admin Dashboard:
+
+        A web panel to manage properties/bot interactions.
