@@ -1,0 +1,211 @@
+Here's a step-by-step workflow design for your Avier Homes Telegram bot with instant location buttons and property displays:
+1. Optimized Workflow Diagram
+ascii
+Copy
+
+┌───────────────┐          ┌───────────────────┐          ┌───────────────────────┐
+│  User: /start │          │  Bot: Shows       │          │  User: Selects        │
+│               ├─────────▶│  Location Buttons ├─────────▶│  Location (e.g.,      │
+└───────────────┘          │  (Kilimani,       │          │  Kilimani)            │
+                           │  Lavington)       │          │                       │
+                           └───────────────────┘          └──────────┬────────────┘
+                                                                      │
+                                                                      ▼
+                                                           ┌───────────────────────┐
+                                                           │  Bot: Displays All    │
+                                                           │  Properties in Location│
+                                                           │  (Images + Details)   │
+                                                           └───────────────────────┘
+                                                                      │
+                                                                      ▼
+                                                           ┌───────────────────────┐
+                                                           │  Navigation Buttons:  │
+                                                           │  [Back] [Next Property]│
+                                                           └───────────────────────┘
+
+2. Step-by-Step Implementation
+A. Step 1 - User Starts Bot (/start)
+
+Bot Response:
+markdown
+Copy
+
+👋 Welcome to Avier Homes, Timothy!
+
+🏡 *Available Locations*:
+[Kilimani] [Lavington] [Westlands] [Karen]
+
+Implementation:
+python
+Copy
+
+def start(update: Update, context: CallbackContext):
+    # Fetch unique locations from WordPress API
+    locations = get_unique_locations()  # ["Kilimani", "Lavington", ...]
+    
+    # Create inline buttons
+    buttons = [
+        [InlineKeyboardButton(loc, callback_data=f"loc_{loc}")]
+        for loc in locations
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(buttons)
+    
+    update.message.reply_text(
+        "👋 Welcome to Avier Homes!\n\n🏡 *Available Locations*:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+B. Step 2 - User Selects Location
+
+Bot Action:
+
+    Fetch all properties in the selected location from WordPress API.
+
+    Display the first property with image + details.
+
+Bot Response:
+markdown
+Copy
+
+🖼️ [Property Image]
+🏠 *4-Bed Luxury Apartment in Kilimani*
+💰 Price: KES 35,000,000
+🛏 Bedrooms: 4 | 🚽 Bathrooms: 3
+📍 Location: Kilimani
+📝 *Description*: Spacious modern apartment with panoramic city views...
+
+[1/5] Next Property | 📍 Back to Locations
+
+Implementation:
+python
+Copy
+
+def handle_location(update: Update, context: CallbackContext):
+    query = update.callback_query
+    location = query.data.replace("loc_", "")  # Extract location
+    
+    # Fetch properties from WordPress API
+    properties = get_properties_by_location(location)
+    
+    # Store properties in user context
+    context.user_data['properties'] = properties
+    context.user_data['current_property_index'] = 0
+    
+    # Send first property
+    send_property_card(query, properties[0])
+
+def send_property_card(query, property):
+    # Get property details
+    title = property['title']['rendered']
+    price = property['acf']['price']
+    desc = property['content']['rendered']
+    image_url = property['_embedded']['wp:featuredmedia'][0]['source_url']
+    
+    # Create buttons
+    buttons = [
+        [
+            InlineKeyboardButton("◀️ Back", callback_data="back_to_locs"),
+            InlineKeyboardButton("Next ▶️", callback_data="next_property")
+        ]
+    ]
+    
+    # Send photo + caption
+    query.edit_message_media(
+        InputMediaPhoto(image_url, caption=f"🏠 *{title}*\n💰 Price: {price}\n📝 {desc}"),
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
+
+C. Step 3 - Property Navigation
+
+User Actions:
+
+    Next Property: Cycle through listings.
+
+    Back to Locations: Return to location selection.
+
+Implementation:
+python
+Copy
+
+def handle_navigation(update: Update, context: CallbackContext):
+    query = update.callback_query
+    action = query.data
+    
+    properties = context.user_data.get('properties', [])
+    index = context.user_data.get('current_property_index', 0)
+    
+    if action == "next_property":
+        if index < len(properties) - 1:
+            index += 1
+            context.user_data['current_property_index'] = index
+            send_property_card(query, properties[index])
+    elif action == "back_to_locs":
+        # Return to location selection
+        start(update, context)
+
+3. Key Features
+
+    Instant Location Buttons:
+
+        Fetched dynamically from WordPress.
+
+        Always up-to-date with available properties.
+
+    Rich Property Cards:
+
+        Images from WordPress media library.
+
+        Cleanly formatted descriptions/pricing.
+
+    Zero Typing Required:
+
+        Entire interaction through buttons.
+
+    Pagination:
+
+        Users can swipe through multiple properties.
+
+4. Required WordPress API Endpoints
+
+    Get All Locations:
+    python
+    Copy
+
+    def get_unique_locations():
+        response = requests.get("https://avierhomes.co.ke/wp-json/wp/v2/property?_fields=acf.location")
+        locations = list(set([p['acf']['location'] for p in response.json()))
+        return locations
+
+    Get Properties by Location:
+    python
+    Copy
+
+    def get_properties_by_location(location):
+        url = f"https://avierhomes.co.ke/wp-json/wp/v2/property?acf.location={location}&_embed"
+        return requests.get(url).json()
+
+5. Error Handling
+Scenario	Bot Response
+No properties in location	"🏡 No listings in Kilimani yet. Check other locations!"
+API failure	"⚠️ Our property list is updating. Try again in 5 mins!"
+6. Final Bot Demo Flow
+Copy
+
+User: /start  
+Bot: Shows [Kilimani] [Lavington] [Westlands] buttons  
+User: Clicks "Kilimani"  
+Bot: Shows Property 1/3 with image + details + [Next][Back]  
+User: Clicks "Next"  
+Bot: Shows Property 2/3  
+User: Clicks "Back"  
+Bot: Returns to location selection  
+
+7. Recommended Improvements
+
+    Favorite Properties: Add ❤️ Save buttons.
+
+    Price Filtering: Add "Show <$500K" buttons.
+
+    Agent Contact: Add "📞 Request Viewing" button.
