@@ -8,8 +8,11 @@ def format_property_message(property_data):
     Returns:
         str: Formatted markdown message
     """
-    # Extract property name from title
+    # Extract property name from title - remove HTML entities and decode
     property_name = property_data['title']['rendered'] if 'title' in property_data and 'rendered' in property_data['title'] else "Unnamed Property"
+    # Clean up any HTML entities in the title
+    import html
+    property_name = html.unescape(property_name)
     
     # Extract ACF fields (Advanced Custom Fields)
     acf = property_data.get('acf', {})
@@ -17,6 +20,10 @@ def format_property_message(property_data):
     location = acf.get('location', 'N/A')
     bedrooms = acf.get('bedrooms', 'N/A')
     bathrooms = acf.get('bathrooms', 'N/A')
+    area = acf.get('area', 'N/A')  # Add property area if available
+    
+    # Get the property URL for more details
+    property_url = property_data.get('link', '#')
     
     # Format the message using markdown
     message = (
@@ -24,7 +31,16 @@ def format_property_message(property_data):
         f"💰 Price: {price}\n"
         f"🛏 Bedrooms: {bedrooms}\n"
         f"🚽 Bathrooms: {bathrooms}\n"
-        f"📍 Location: {location}"
+    )
+    
+    # Add area if available
+    if area and area != 'N/A':
+        message += f"📏 Area: {area}\n"
+    
+    # Add location and link to more details
+    message += (
+        f"📍 Location: {location}\n\n"
+        f"[View more details]({property_url})"
     )
     
     return message
