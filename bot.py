@@ -35,64 +35,26 @@ ALERT_MAX_PRICE, ALERT_MIN_BEDROOMS, ALERT_LIST, ALERT_DELETE_CONFIRM) = range(5
 property_display_cache = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a welcome message when the command /start is issued and immediately show available properties."""
+    """Send a welcome message when the command /start is issued and show a Properties button."""
     # Get user's first name for personalized greeting
     user_first_name = update.message.from_user.first_name
     
-    # Send welcome message
+    # Create a single "Properties" button
+    keyboard = [[InlineKeyboardButton("View Properties 🏠", callback_data="show_properties")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Send welcome message with Properties button
     await update.message.reply_text(
         f"👋 *Welcome to Avier Homes Property Bot, {user_first_name}!*\n\n"
-        "I can help you find your dream home in Kenya. Let me show you our available properties right away!\n\n"
+        "I can help you find your dream home in Kenya.\n\n"
         "You can also ask me things like:\n"
         "- \"Show me properties in Lavington\"\n"
         "- \"I'm looking for a house in Kilimani\"\n"
         "- \"Find properties\"\n\n"
-        "Or just say hello to start exploring!",
-        parse_mode="Markdown"
+        "Or just click the button below to browse our properties:",
+        parse_mode="Markdown",
+        reply_markup=reply_markup
     )
-    
-    # Show loading message while fetching properties
-    loading_message = await update.message.reply_text(BOT_MESSAGES["loading"])
-    
-    # Get all available properties
-    from api import fetch_properties
-    properties = fetch_properties()
-    
-    if not properties or len(properties) == 0:
-        await loading_message.edit_text("Sorry, I couldn't find any properties at the moment. Please try again later.")
-        return
-    
-    # Get available locations
-    locations = get_locations()
-    
-    if locations:
-        # Create a message with the count of available properties
-        property_count_text = f"We have {len(properties)} properties available across {len(locations)} locations:"
-        
-        # Create keyboard with locations
-        keyboard = []
-        for location in locations:
-            if not isinstance(location, str):
-                logger.warning(f"Skipping non-string location: {location}")
-                continue
-            
-            # Count properties in this location
-            location_properties = get_properties_by_location(location)
-            count = len(location_properties) if location_properties else 0
-            
-            # Ensure button text is a string
-            button_text = f"{location} ({count} properties)"
-            keyboard.append([InlineKeyboardButton(button_text, callback_data=f"location:{location}")])
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        # Show location options
-        await loading_message.edit_text(
-            f"{property_count_text}\n\nPlease select a location to view properties:",
-            reply_markup=reply_markup
-        )
-    else:
-        await loading_message.edit_text("Sorry, I couldn't find any locations. Please try again later.")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a help message when the command /help is issued."""
@@ -977,6 +939,56 @@ async def alert_delete_confirmed(update: Update, context: ContextTypes.DEFAULT_T
     
     return ConversationHandler.END
 
+async def show_properties_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle the 'Properties' button click and show available locations."""
+    query = update.callback_query
+    await query.answer()
+    
+    # Show loading message
+    await query.edit_message_text(BOT_MESSAGES["loading"])
+    
+    # Get all available properties
+    from api import fetch_properties
+    properties = fetch_properties()
+    
+    if not properties or len(properties) == 0:
+        await query.edit_message_text("Sorry, I couldn't find any properties at the moment. Please try again later.")
+        return ConversationHandler.END
+    
+    # Get available locations
+    locations = get_locations()
+    
+    if locations:
+        # Create a message with the count of available properties
+        property_count_text = f"We have {len(properties)} properties available across {len(locations)} locations:"
+        
+        # Create keyboard with locations
+        keyboard = []
+        for location in locations:
+            if not isinstance(location, str):
+                logger.warning(f"Skipping non-string location: {location}")
+                continue
+            
+            # Count properties in this location
+            location_properties = get_properties_by_location(location)
+            count = len(location_properties) if location_properties else 0
+            
+            # Ensure button text is a string
+            button_text = f"{location} ({count} properties)"
+            keyboard.append([InlineKeyboardButton(button_text, callback_data=f"location:{location}")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Show location options
+        await query.edit_message_text(
+            f"{property_count_text}\n\nPlease select a location to view properties:",
+            reply_markup=reply_markup
+        )
+        return SELECTING_LOCATION
+    else:
+        await query.edit_message_text("Sorry, I couldn't find any locations. Please try again later.")
+        return ConversationHandler.END
+
 def create_bot():
     """Create and configure the bot with all handlers."""
     # Create application
@@ -1055,6 +1067,7 @@ def create_bot():
     # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CallbackQueryHandler(show_properties_button, pattern=r"^show_properties$"))  # Handle Properties button
     application.add_handler(alerts_conv_handler)  # Add the alerts handler
     application.add_handler(conv_handler)
     
