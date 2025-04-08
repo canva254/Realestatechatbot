@@ -120,6 +120,13 @@ The bot includes comprehensive error handling:
 - Invalid user inputs
 - Database connection problems
 
+## Continuous Integration/Deployment
+
+This project features automatic GitHub synchronization:
+- Every commit is automatically pushed to GitHub via Git hooks
+- Development changes are instantly reflected in the repository
+- Ensures the GitHub repository is always up-to-date with the latest changes
+
 ## Contributing
 
 1. Fork the repository
