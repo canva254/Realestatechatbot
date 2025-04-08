@@ -70,7 +70,7 @@ def get_locations():
     """
     properties = fetch_properties()
     if not properties:
-        return None
+        return ["Lavington"]  # Return a default location if API fails
     
     # Extract unique locations from the acf.location field
     locations = set()
@@ -82,6 +82,10 @@ def get_locations():
                 locations.add(location)
             else:
                 logger.warning(f"Skipping invalid location in property {property.get('id', 'unknown')}: {location}")
+    
+    # If no locations found, add a default one
+    if not locations:
+        locations.add("Lavington")
     
     locations = sorted(list(locations))
     logger.info(f"Extracted {len(locations)} unique locations: {locations}")

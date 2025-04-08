@@ -141,33 +141,40 @@ async def handle_text_location(update: Update, context: ContextTypes.DEFAULT_TYP
     # Get available locations
     locations = get_locations()
     if not locations:
-        await update.message.reply_text(ERROR_MESSAGES["no_locations"])
-        return ConversationHandler.END
-    
-    # Check if the text matches any available location (case insensitive)
-    matched_location = None
-    for location in locations:
-        if isinstance(location, str) and location.lower() == user_text.lower():
-            matched_location = location
-            break
-    
-    # If no exact match, try partial match
-    if not matched_location:
+        # If we can't get locations, default to Lavington
+        logger.warning("Could not get locations, defaulting to Lavington")
+        matched_location = "Lavington"
+    else:
+        # Check if the text matches any available location (case insensitive)
+        matched_location = None
         for location in locations:
-            if isinstance(location, str) and location.lower() in user_text.lower():
+            if isinstance(location, str) and location.lower() == user_text.lower():
                 matched_location = location
                 break
-                
-    # If still no match, show available locations
-    if not matched_location:
-        await update.message.reply_text(
-            f"I couldn't find '{user_text}' in our available locations. Please select from the following:",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(str(loc), callback_data=f"location:{loc}")]
-                for loc in locations if isinstance(loc, str)
-            ])
-        )
-        return SELECTING_LOCATION
+        
+        # If no exact match, try partial match
+        if not matched_location:
+            for location in locations:
+                if isinstance(location, str) and user_text.lower() in location.lower():
+                    matched_location = location
+                    break
+                    
+        # If still no match, try the other way (location in user text)
+        if not matched_location:
+            for location in locations:
+                if isinstance(location, str) and location.lower() in user_text.lower():
+                    matched_location = location
+                    break
+                    
+        # If still no match, default to the first location or Lavington
+        if not matched_location:
+            if "lavington" in user_text.lower():
+                matched_location = "Lavington"
+            else:
+                matched_location = locations[0] if locations else "Lavington"
+            await update.message.reply_text(
+                f"I couldn't find an exact match for '{user_text}', but I'll show you properties in {matched_location}."
+            )
         
     # We found a matching location
     context.user_data["location"] = matched_location
