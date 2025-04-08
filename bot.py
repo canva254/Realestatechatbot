@@ -68,6 +68,14 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     # Show loading message
     message = await update.message.reply_text(BOT_MESSAGES["loading"])
     
+    # Get all available properties
+    from api import fetch_properties
+    properties = fetch_properties()
+    
+    if not properties or len(properties) == 0:
+        await message.edit_text("Sorry, I couldn't find any properties at the moment. Please try again later.")
+        return ConversationHandler.END
+    
     # Get locations from API
     locations = get_locations()
     
@@ -76,6 +84,9 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await message.edit_text(ERROR_MESSAGES["no_locations"])
         return ConversationHandler.END
     
+    # Create a message with the count of available properties
+    property_count_text = f"We have {len(properties)} properties available across {len(locations)} locations:"
+    
     # Create keyboard with locations
     keyboard = []
     for location in locations:
@@ -83,14 +94,19 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             logger.warning(f"Skipping non-string location in search: {location}")
             continue
         
-        # Ensure button text is a string
-        keyboard.append([InlineKeyboardButton(str(location), callback_data=f"location:{location}")])
+        # Count properties in this location
+        location_properties = get_properties_by_location(location)
+        count = len(location_properties) if location_properties else 0
+        
+        # Ensure button text is a string with house emoji
+        button_text = f"🏠 {location} ({count})"
+        keyboard.append([InlineKeyboardButton(button_text, callback_data=f"location:{location}")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # Show location options
     await message.edit_text(
-        BOT_MESSAGES["search_prompt"],
+        property_count_text,
         reply_markup=reply_markup
     )
     
@@ -389,15 +405,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 location_properties = get_properties_by_location(location)
                 count = len(location_properties) if location_properties else 0
                 
-                # Ensure button text is a string
-                button_text = f"{location} ({count} properties)"
+                # Ensure button text is a string with house emoji (consistent with other places)
+                button_text = f"🏠 {location} ({count})"
                 keyboard.append([InlineKeyboardButton(button_text, callback_data=f"location:{location}")])
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            # Show location options
+            # Show location options directly as buttons
             await loading_message.edit_text(
-                f"{property_count_text}\n\nPlease select a location to view properties:",
+                property_count_text,
                 reply_markup=reply_markup
             )
             return SELECTING_LOCATION
@@ -940,7 +956,7 @@ async def alert_delete_confirmed(update: Update, context: ContextTypes.DEFAULT_T
     return ConversationHandler.END
 
 async def show_properties_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Handle the 'Properties' button click and show available locations."""
+    """Handle the 'Properties' button click and show available locations as direct buttons."""
     query = update.callback_query
     await query.answer()
     
@@ -962,7 +978,7 @@ async def show_properties_button(update: Update, context: ContextTypes.DEFAULT_T
         # Create a message with the count of available properties
         property_count_text = f"We have {len(properties)} properties available across {len(locations)} locations:"
         
-        # Create keyboard with locations
+        # Create keyboard with locations - using house emoji for each location button
         keyboard = []
         for location in locations:
             if not isinstance(location, str):
@@ -973,15 +989,15 @@ async def show_properties_button(update: Update, context: ContextTypes.DEFAULT_T
             location_properties = get_properties_by_location(location)
             count = len(location_properties) if location_properties else 0
             
-            # Ensure button text is a string
-            button_text = f"{location} ({count} properties)"
+            # Ensure button text is a string with house emoji
+            button_text = f"🏠 {location} ({count})"
             keyboard.append([InlineKeyboardButton(button_text, callback_data=f"location:{location}")])
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        # Show location options
+        # Show locations directly as buttons
         await query.edit_message_text(
-            f"{property_count_text}\n\nPlease select a location to view properties:",
+            f"{property_count_text}",
             reply_markup=reply_markup
         )
         return SELECTING_LOCATION
