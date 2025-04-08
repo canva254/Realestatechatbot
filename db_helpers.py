@@ -125,8 +125,29 @@ def save_property_listing(property_data):
         acf = property_data.get('acf', {})
         location = acf.get('location')
         price = acf.get('price')
-        bedrooms = acf.get('bedrooms')
-        bathrooms = acf.get('bathrooms')
+        
+        # Parse bedrooms - extract the first number from the string
+        bedrooms_text = acf.get('bedrooms', '')
+        bedrooms = None
+        if bedrooms_text:
+            import re
+            # Extract just the number from text like "4 Bedrooms ALL ensuite + DSQ"
+            bedroom_match = re.search(r'\d+', str(bedrooms_text))
+            if bedroom_match:
+                bedrooms = int(bedroom_match.group())
+        
+        # Parse bathrooms - ensure it's an integer
+        bathrooms_text = acf.get('bathrooms', '')
+        bathrooms = None
+        if bathrooms_text:
+            try:
+                bathrooms = int(bathrooms_text)
+            except (ValueError, TypeError):
+                # If bathrooms can't be converted to int, try to extract the first number
+                import re
+                bathroom_match = re.search(r'\d+', str(bathrooms_text))
+                if bathroom_match:
+                    bathrooms = int(bathroom_match.group())
         
         # Get property URL
         property_url = property_data.get('link')

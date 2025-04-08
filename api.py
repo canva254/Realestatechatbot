@@ -76,7 +76,12 @@ def get_locations():
     locations = set()
     for property in properties:
         if 'acf' in property and 'location' in property['acf']:
-            locations.add(property['acf']['location'])
+            location = property['acf']['location']
+            # Only add string locations, skip None or other types
+            if isinstance(location, str) and location.strip():
+                locations.add(location)
+            else:
+                logger.warning(f"Skipping invalid location in property {property.get('id', 'unknown')}: {location}")
     
     locations = sorted(list(locations))
     logger.info(f"Extracted {len(locations)} unique locations: {locations}")
@@ -93,6 +98,15 @@ def get_properties_by_location(location):
     Returns:
         list: List of filtered property dictionaries or None if there was an error
     """
+    # Validate location is a string
+    if not isinstance(location, str):
+        logger.error(f"Invalid location type: {type(location)}. Expected string.")
+        return None
+        
+    if not location.strip():
+        logger.error("Empty location string provided")
+        return None
+        
     try:
         # Use the direct filter endpoint for better performance
         filter_url = f"{WP_API_URL}?acf[location]={location}&_embed"
@@ -119,6 +133,7 @@ def get_properties_by_location(location):
         for property in properties:
             if ('acf' in property and 
                 'location' in property['acf'] and 
+                isinstance(property['acf']['location'], str) and
                 property['acf']['location'] == location):
                 filtered_properties.append(property)
         

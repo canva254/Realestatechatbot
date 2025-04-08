@@ -72,10 +72,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Create keyboard with locations
         keyboard = []
         for location in locations:
+            if not isinstance(location, str):
+                logger.warning(f"Skipping non-string location: {location}")
+                continue
+            
             # Count properties in this location
             location_properties = get_properties_by_location(location)
             count = len(location_properties) if location_properties else 0
-            keyboard.append([InlineKeyboardButton(f"{location} ({count} properties)", callback_data=f"location:{location}")])
+            
+            # Ensure button text is a string
+            button_text = f"{location} ({count} properties)"
+            keyboard.append([InlineKeyboardButton(button_text, callback_data=f"location:{location}")])
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -110,7 +117,12 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     # Create keyboard with locations
     keyboard = []
     for location in locations:
-        keyboard.append([InlineKeyboardButton(location, callback_data=f"location:{location}")])
+        if not isinstance(location, str):
+            logger.warning(f"Skipping non-string location in search: {location}")
+            continue
+        
+        # Ensure button text is a string
+        keyboard.append([InlineKeyboardButton(str(location), callback_data=f"location:{location}")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -294,10 +306,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             # Create keyboard with locations
             keyboard = []
             for location in locations:
+                if not isinstance(location, str):
+                    logger.warning(f"Skipping non-string location in handle_message: {location}")
+                    continue
+                    
                 # Count properties in this location
                 location_properties = get_properties_by_location(location)
                 count = len(location_properties) if location_properties else 0
-                keyboard.append([InlineKeyboardButton(f"{location} ({count} properties)", callback_data=f"location:{location}")])
+                
+                # Ensure button text is a string
+                button_text = f"{location} ({count} properties)"
+                keyboard.append([InlineKeyboardButton(button_text, callback_data=f"location:{location}")])
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
@@ -410,6 +429,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Check if message directly mentions a location
     if locations:
         for location in locations:
+            # Skip if location is not a string
+            if not isinstance(location, str):
+                logger.warning(f"Skipping non-string location in message handler: {location}")
+                continue
+                
             if location.lower() in message_text:
                 await update.message.reply_text(f"Let me find properties in {location} for you...")
                 context.user_data["location"] = location
@@ -500,9 +524,17 @@ async def preload_popular_locations(application):
         logger.warning("No locations found to preload")
         return
     
+    # Filter out non-string locations
+    valid_locations = []
+    for loc in locations:
+        if isinstance(loc, str):
+            valid_locations.append(loc)
+        else:
+            logger.warning(f"Skipping non-string location in preloading: {loc}")
+    
     # If we have more than 3 locations, preload the first 3 (assuming they're more popular)
     # This is a simple heuristic - you could adjust based on actual user data
-    preload_locations = locations[:min(3, len(locations))]
+    preload_locations = valid_locations[:min(3, len(valid_locations))]
     
     for location in preload_locations:
         logger.info(f"Preloading properties for {location}")
@@ -581,7 +613,12 @@ async def alert_option_selected(update: Update, context: ContextTypes.DEFAULT_TY
         # Create keyboard with locations
         keyboard = []
         for location in locations:
-            keyboard.append([InlineKeyboardButton(location, callback_data=f"alert_location:{location}")])
+            if not isinstance(location, str):
+                logger.warning(f"Skipping non-string location in alert creation: {location}")
+                continue
+                
+            # Ensure button text is a string
+            keyboard.append([InlineKeyboardButton(str(location), callback_data=f"alert_location:{location}")])
         
         # Add option for no location filter (all locations)
         keyboard.append([InlineKeyboardButton("All Locations", callback_data="alert_location:all")])
