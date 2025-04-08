@@ -85,7 +85,7 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return ConversationHandler.END
     
     # Since we want to show properties right away, let's default to the first location
-    location = locations[0] if isinstance(locations[0], str) else "Unknown"
+    location = locations[0]
     
     # Get properties for selected location
     location_properties = get_properties_by_location(location)
@@ -421,7 +421,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             return CHATTING
         
         # Since we want to show properties right away, let's default to the first location
-        location = locations[0] if isinstance(locations[0], str) else "Unknown"
+        location = locations[0]
         
         # Get properties for selected location
         location_properties = get_properties_by_location(location)
@@ -1032,7 +1032,7 @@ async def show_properties_button(update: Update, context: ContextTypes.DEFAULT_T
         return ConversationHandler.END
     
     # Since we want to show properties right away, let's default to the first location
-    location = locations[0] if isinstance(locations[0], str) else "Unknown"
+    location = locations[0]
     
     # Get properties for selected location
     location_properties = get_properties_by_location(location)

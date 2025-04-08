@@ -81,10 +81,20 @@ def get_locations():
             if isinstance(location, str) and location.strip():
                 locations.add(location)
             else:
-                logger.warning(f"Skipping invalid location in property {property.get('id', 'unknown')}: {location}")
+                # Log the warning and try to extract a string representation if possible
+                logger.warning(f"Invalid location format in property {property.get('id', 'unknown')}: {type(location)}")
+                try:
+                    # Try to convert to string if it's something that can be represented as a string
+                    str_location = str(location)
+                    if str_location and str_location.strip():
+                        logger.info(f"Successfully converted location to string: {str_location}")
+                        locations.add(str_location)
+                except Exception as e:
+                    logger.error(f"Could not convert location to string: {e}")
     
     # If no locations found, add a default one
     if not locations:
+        logger.warning("No valid locations found, adding default location 'Lavington'")
         locations.add("Lavington")
     
     locations = sorted(list(locations))
@@ -102,10 +112,15 @@ def get_properties_by_location(location):
     Returns:
         list: List of filtered property dictionaries or None if there was an error
     """
-    # Validate location is a string
+    # Validate and convert location to a string if needed
     if not isinstance(location, str):
-        logger.error(f"Invalid location type: {type(location)}. Expected string.")
-        return None
+        logger.warning(f"Invalid location type: {type(location)}. Expected string. Attempting to convert...")
+        try:
+            location = str(location)
+            logger.info(f"Successfully converted location to string: {location}")
+        except Exception as e:
+            logger.error(f"Failed to convert location to string: {e}")
+            return None
         
     if not location.strip():
         logger.error("Empty location string provided")
@@ -135,11 +150,20 @@ def get_properties_by_location(location):
         # Filter properties by location
         filtered_properties = []
         for property in properties:
-            if ('acf' in property and 
-                'location' in property['acf'] and 
-                isinstance(property['acf']['location'], str) and
-                property['acf']['location'] == location):
-                filtered_properties.append(property)
+            if 'acf' in property and 'location' in property['acf']:
+                prop_location = property['acf']['location']
+                
+                # Try to match either string or converted string
+                if isinstance(prop_location, str) and prop_location == location:
+                    filtered_properties.append(property)
+                # Try to convert to string and compare if not already a string
+                elif not isinstance(prop_location, str):
+                    try:
+                        if str(prop_location) == location:
+                            logger.info(f"Matched after converting non-string location to string: {prop_location}")
+                            filtered_properties.append(property)
+                    except Exception as e:
+                        logger.error(f"Error comparing location strings: {e}")
         
         logger.info(f"Found {len(filtered_properties)} properties in {location} (fallback)")
         return filtered_properties if filtered_properties else None

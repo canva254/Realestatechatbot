@@ -17,7 +17,20 @@ def format_property_message(property_data):
     # Extract ACF fields (Advanced Custom Fields)
     acf = property_data.get('acf', {})
     price = acf.get('price', 'N/A')
-    location = acf.get('location', 'N/A')
+    
+    # Get location and ensure it's a string
+    location_raw = acf.get('location')
+    if location_raw is None:
+        location = 'N/A'
+    elif isinstance(location_raw, str):
+        location = location_raw
+    else:
+        # Try to convert non-string location to string
+        try:
+            location = str(location_raw)
+        except:
+            location = 'N/A'
+            
     bedrooms = acf.get('bedrooms', 'N/A')
     bathrooms = acf.get('bathrooms', 'N/A')
     area = acf.get('area', 'N/A')  # Add property area if available
